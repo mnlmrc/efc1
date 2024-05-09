@@ -2,10 +2,15 @@ function varargout=efc1_analyze(what, varargin)
 
 addpath('functions/')
 
+localPath = '/Users/mnlmrc/Documents/';
+
+path = localPath;
+addpath([path 'GitHub/spmj_tools/'])
+addpath([path 'GitHub/dataframe/util/'])
+
 % setting paths:
-usr_path = userpath;
-usr_path = usr_path(1:end-17);
-project_path = fullfile(usr_path, 'Desktop', 'Projects', 'EFC1');
+usr_path = '/Volumes/diedrichsen_data$/data/SequenceAndChord/ExtFlexChord/EFC1/analysis/';
+project_path = usr_path;
 
 % colors:
 colors_red = [[255, 219, 219] ; [255, 146, 146] ; [255, 73, 73] ; [255, 0, 0] ; [182, 0, 0]]/255;
@@ -874,23 +879,27 @@ switch (what)
         subj_selection = [];
         vararginoptions(varargin,{'chords','subj_selection'})
         
-        data = dload(fullfile(project_path, 'analysis', 'efc1_all.tsv'));
+        data = dload(fullfile(project_path, 'efc1_all.tsv'));
         data = getrow(data,ismember(data.chordID,chords));
         if ~isempty(subj_selection)
             data = getrow(data,ismember(data.sn,subj_selection));
         end
+
+        chordID = data.chordID;
         
         % getting the values of measure:
         MD = data.MD;
         MD(MD==-1) = NaN;
         RT = data.RT;
         RT(RT==-1) = NaN;
+        chordID(MD==-1) = NaN;
         
         % putting trials in rows:
         n_fing = reshape(data.num_fingers,5,[]); 
         sess = reshape(data.sess,5,[]); 
         MD = reshape(MD,5,[]);
         RT = reshape(RT,5,[]);
+        chordID = reshape(chordID,5,[]);
         subj = reshape(data.sn,5,[]);
         repetitions = 5;
 
