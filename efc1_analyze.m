@@ -1000,6 +1000,289 @@ switch (what)
         dsave(fullfile(project_path,'analysis','training_repetition.tsv'),C);
         varargout{1} = C;
         varargout{2} = B;
+    
+    case 'slope vs MD'
+
+        chords = generateAllChords;
+        subj_selection = [];
+        num_fingers = 4;
+
+        vararginoptions(varargin,{'chords','subj_selection', 'num_fingers'})
+        
+        data = dload(fullfile(project_path, 'efc1_all.tsv'));
+        data = getrow(data,ismember(data.chordID,chords));
+        if ~isempty(subj_selection)
+            data = getrow(data,ismember(data.sn,subj_selection));
+        end
+
+        chordID = data.chordID;
+        
+        % getting the values of measure:
+        MD = data.MD;
+        MD(MD==-1) = NaN;
+        RT = data.RT;
+        RT(RT==-1) = NaN;
+        chordID(MD==-1) = NaN;
+        
+        % putting trials in rows:
+        n_fing = reshape(data.num_fingers,5,[]); 
+        sess = reshape(data.sess,5,[]); 
+        MD = reshape(MD,5,[]);
+        RT = reshape(RT,5,[]);
+        chordID = reshape(chordID,5,[]);
+        subj = reshape(data.sn,5,[]);
+        repetitions = 5;
+
+        % filter n_finger
+        trial_idx = n_fing(1, :)==num_fingers;
+        n_fing = n_fing(:, trial_idx);
+        MD = MD(:, trial_idx);
+        RT = RT(:, trial_idx);
+        sess = sess(:, trial_idx);
+        subj = subj(:, trial_idx);
+        chordID = chordID(:, trial_idx);
+
+        % measure slopes across sessions:
+        n_fing = n_fing(1,:);
+        n_fing_unique = unique(n_fing);
+        sess = sess(1,:);
+        subj = subj(1,:);
+        subj_unique = unique(subj);
+        chordID = chordID(1, :);
+        chordID_unique = unique(chordID);
+        C = [];
+        cnt = 1;
+        for sn = 1:length(subj_unique)
+            for ch = 1:length(chordID_unique)
+                C.num_fingers(cnt,1) = num_fingers;
+                C.subj(cnt,1) = subj_unique(sn);
+                C.chordID(cnt, 1) = chordID_unique(ch);
+                
+                % selecting the data for each session, finger count and
+                % subject:
+                MD_tmp = MD(:, subj==subj_unique(sn) & chordID==chordID_unique(ch));
+                for rep = 1:size(MD_tmp, 1)
+                    p = polyfit([1, 2, 3, 4], MD_tmp(rep, :), 1);
+                    slope(rep) = p(1);
+                end
+                
+                C.slope_rep1(cnt,1) = slope(1);
+                C.slope_rep2(cnt,1) = slope(2);
+                C.slope_rep3(cnt,1) = slope(3);
+                C.slope_rep4(cnt,1) = slope(4);
+                C.slope_rep5(cnt,1) = slope(5);
+
+                C.diff_rep1(cnt, 1) = MD_tmp(1, end) - MD_tmp(1, 1);
+                C.diff_rep2(cnt, 1) = MD_tmp(2, end) - MD_tmp(2, 1);
+                C.diff_rep3(cnt, 1) = MD_tmp(3, end) - MD_tmp(3, 1);
+                C.diff_rep4(cnt, 1) = MD_tmp(4, end) - MD_tmp(4, 1);
+                C.diff_rep5(cnt, 1) = MD_tmp(5, end) - MD_tmp(5, 1);
+
+                cnt = cnt+1;
+
+
+            end
+        end
+        
+        cnt = 1;
+        B = [];
+        for ch = 1:length(chordID_unique)
+
+            B.num_fingers(cnt,1) = num_fingers;
+            B.chordID(cnt, 1) = chordID_unique(ch);
+
+            MD_tmp = MD(:, chordID==chordID_unique(ch) & (sess==3 | sess==4));
+            B.MD_chord(cnt,1) = mean(MD_tmp(:), 'omitmissing');
+
+            slope_tmp = [C.slope_rep1, C.slope_rep2, C.slope_rep3, C.slope_rep4, C.slope_rep5]';
+            slope_tmp = slope_tmp(:, C.chordID==chordID_unique(ch));
+            tmp = mean(slope_tmp, 2, "omitmissing");
+            B.slope_chord_rep1(cnt,1) = tmp(1);
+            B.slope_chord_rep2(cnt,1) = tmp(2);
+            B.slope_chord_rep3(cnt,1) = tmp(3);
+            B.slope_chord_rep4(cnt,1) = tmp(4);
+            B.slope_chord_rep5(cnt,1) = tmp(5);
+
+            diff_tmp = [C.diff_rep1, C.diff_rep2, C.diff_rep3, C.diff_rep4, C.diff_rep5]';
+            diff_tmp = diff_tmp(:, C.chordID==chordID_unique(ch));
+            tmp = mean(diff_tmp, 2, "omitmissing");
+            B.diff_chord_rep1(cnt,1) = tmp(1);
+            B.diff_chord_rep2(cnt,1) = tmp(2);
+            B.diff_chord_rep3(cnt,1) = tmp(3);
+            B.diff_chord_rep4(cnt,1) = tmp(4);
+            B.diff_chord_rep5(cnt,1) = tmp(5);
+
+            cnt = cnt + 1;
+
+        end
+
+        figure;
+        subplot(211)
+        s1 = scatter(B.MD_chord, B.slope_chord_rep1, 'blue', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none');
+        hold on
+        s2 = scatter(B.MD_chord, B.slope_chord_rep2, 'red', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none');
+        s3 = scatter(B.MD_chord, B.slope_chord_rep3, 'green', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none');
+        s4 = scatter(B.MD_chord, B.slope_chord_rep4, 'cyan', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none');
+        s5 = scatter(B.MD_chord, B.slope_chord_rep5, 'magenta', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none');
+
+        p = polyfit(B.MD_chord, B.slope_chord_rep1, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'blue', 'LineWidth',2)
+
+        
+        p = polyfit(B.MD_chord, B.slope_chord_rep2, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'red', 'LineWidth',2)
+
+        
+        p = polyfit(B.MD_chord, B.slope_chord_rep3, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'green', 'LineWidth',2)
+
+        
+        p = polyfit(B.MD_chord, B.slope_chord_rep4, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'cyan', 'LineWidth',2)
+
+        
+        p = polyfit(B.MD_chord, B.slope_chord_rep5, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'magenta', 'LineWidth',2)
+
+        yline(0, 'Color', 'k', 'LineStyle','--')
+
+        ylabel('slope from session #1 to session #4')
+        xlabel('MD')
+
+        legend([s1, s2, s3, s4, s5],'rep1', 'rep2', 'rep3', 'rep4', 'rep5', 'Location', 'southeast')
+
+        title('MD vs. slope across sessions')
+
+        subplot(212)
+        scatter(B.MD_chord, B.diff_chord_rep1, 'blue', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none')
+
+        hold on
+
+        p = polyfit(B.MD_chord, B.diff_chord_rep1, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'blue', 'LineWidth',2)
+
+        scatter(B.MD_chord, B.diff_chord_rep2, 'red', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none')
+        p = polyfit(B.MD_chord, B.diff_chord_rep2, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'red', 'LineWidth',2)
+
+        scatter(B.MD_chord, B.diff_chord_rep3, 'green', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none')
+        p = polyfit(B.MD_chord, B.diff_chord_rep3, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'green', 'LineWidth',2)
+
+        scatter(B.MD_chord, B.diff_chord_rep4, 'cyan', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none')
+        p = polyfit(B.MD_chord, B.diff_chord_rep4, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'cyan', 'LineWidth',2)
+        
+        scatter(B.MD_chord, B.diff_chord_rep5, 'magenta', 'filled', 'MarkerFaceAlpha', .5, 'MarkerEdgeColor','none')
+        p = polyfit(B.MD_chord, B.diff_chord_rep5, 1);
+        xhat = linspace(min(B.MD_chord), max(B.MD_chord));
+        yhat = xhat * p(1) + p(2);
+        plot(xhat, yhat, 'magenta', 'LineWidth',2)
+
+        yline(0, 'Color', 'k', 'LineStyle','--')
+
+        ylabel('difference from session #1 to session #4')
+        xlabel('MD')
+
+        title('MD vs. difference across sessions')
+
+        % sort chords
+        [B.MD_sorted, I] = sort(B.MD_chord);
+        B.chordID_MD_sorted = B.chordID(I);
+
+        [B.slope_chord_rep1_sorted, I] = sort(B.slope_chord_rep1);
+        B.chordID_slope_rep1_sorted = B.chordID(I);
+        
+        % select chords
+        slope_rep1_chordID = B.chordID_slope_rep1_sorted([1:20, end-19:end]);
+        slope_rep1_sorted = B.slope_chord_rep1_sorted([1:20, end-19:end]);
+
+        [~, locInM_slope] = ismember(slope_rep1_chordID, B.chordID);
+
+        MD_chordID = B.chordID_MD_sorted([1:20, end-19:end]);
+        MD_sorted = B.MD_sorted([1:20, end-19:end]);
+
+        [~, locInM_MD] = ismember(MD_chordID, B.chordID);
+
+        figure
+        scatter(B.MD_chord(locInM_slope(1:20)), slope_rep1_sorted(1:20), 'blue', 'Marker', 'x')
+        hold on
+        scatter(B.MD_chord(locInM_slope(21:end)), slope_rep1_sorted(21:end), 'blue', 'filled','Marker', 'o')
+        scatter(MD_sorted(1:20), B.slope_chord_rep1(locInM_MD(1:20)),  'red', 'Marker', '^')
+        scatter(MD_sorted(21:end), B.slope_chord_rep1(locInM_MD(21:end)),  'red', 'Marker', 'o')
+
+        legend('easy, slope', 'difficult, slope', 'easy, MD', 'difficult, MD')
+
+        xlabel('MD')
+        ylabel('slope from session #1 to session #4')
+
+        xline(median(B.MD_chord), 'Color', 'k', 'LineStyle', '--')
+        yline(0, 'Color', 'k', 'LineStyle', '--')
+
+        title('Chord selection based on MD vs. slope')
+
+        figure
+
+        yyaxis left
+        plot(B.MD_sorted, 'red');
+        gca.XColor = 'red';
+        gca.YColor = 'red';
+        xticks(1:80)
+        xticklabels(B.chordID_MD_sorted)
+        xlabel('chords sorted by MD')
+        ylabel('MD')
+        % axes('color', 'red')
+
+        yyaxis right
+        axes('Position',gca().Position, ...
+          'XAxisLocation','top', ...
+          'YAxisLocation','right', ...
+          'Color','None', ...
+          'YTick',[]);
+
+        hold on
+        plot(B.slope_chord_rep1_sorted, 'blue')
+        gca.XColor = 'blue';
+        gca.YColor = 'blue';
+        xticks(1:80)
+        xticklabels(B.chordID_MD_sorted)
+        xlabel('chords sorted by slope')
+        ylabel('slope')
+
+
+
+        varargout{1} = B;
+
+
+        % chordID_MD_rep1_sel = B.chordID_MD_sorted([1:10, end-9:end]);
+        % chordID_MD_rep1_slope = B.slope_chord_rep1_sorted([1:10, end-9:end]);
+        % chordID_MD_rep1_MD = B.MD_sorted([1:10, end-9:end]);
+        % chordID_MD_rep1_label = [repmat({'easy'}, [10, 1]); repmat({'difficult'}, [10, 1])];
+        % 
+        % tab_slope = table(chordID_slope_rep1_sel, ...
+        %     chordID_slope_rep1_slope, ...
+        %     chordID_slope_rep1_MD, ...
+        %     chordID_slope_rep1_label, ...
+        %     'VariableNames',{'chordID', 'slope (rep1)', 'MD', 'difficulty (slope)'});
+
 
     case 'repetition_improvement'
         measure_cell = {};
